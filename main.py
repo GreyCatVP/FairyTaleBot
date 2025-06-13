@@ -1,98 +1,81 @@
+
 import os
-import smtplib
-from email.mime.text import MIMEText
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import httpx
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from dotenv import load_dotenv
 
-# Переменные окружения
-TOKEN = os.environ.get("TOKEN")
-EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
-RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL")
+load_dotenv()
 
-print(f"🔐 Бот запускается с токеном: {TOKEN}")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# Команда /start
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("🚀 Команда /start получена")
-    await update.message.reply_text("Привет! Введите кодовое слово:")
+SYSTEM_PROMPT = """Ты — добрый сказочник. Придумывай оригинальные добрые сказки для детей, чтобы их могли читать родители перед сном.
+Истории должны быть тёплыми, с моралью, легко читаемыми. Не пиши слишком коротко и не перегружай сложными словами.
 
-# Обработка текстового сообщения (кодовое слово)
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("➡️ handle_message вызван")
-    print("📨 Получено сообщение:", update.message.text)
-    context.user_data["codeword"] = update.message.text
+Размер сказки — 1500–2000 символов."""
 
-    button = KeyboardButton("Отправить номер телефона", request_contact=True)
-    keyboard = ReplyKeyboardMarkup([[button]], resize_keyboard=True, one_time_keyboard=True)
+HEADERS = {
+    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+    "HTTP-Referer": "https://t.me/SkazochnikTimoshaBot",
+    "Content-Type": "application/json"
+}
 
-    await update.message.reply_text(
-        "Спасибо! Теперь нажмите кнопку, чтобы отправить номер телефона:",
-        reply_markup=keyboard
-    )
-
-# Обработка контакта (номер телефона)
-async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("➡️ handle_contact вызван")
-    contact = update.message.contact
-    user = update.effective_user
-    codeword = context.user_data.get("codeword", "—")
-
-    email_text = f"""Новый купон!
-
-🔤 Кодовое слово: "{codeword}"
-📱 Телефон: {contact.phone_number}
-👤 Telegram: @{user.username}
-Имя в Telegram: {user.full_name}
-"""
-
-    print("📧 Отправка письма...")
+async def generate_fairytale():
+    payload = {
+        "model": "openrouter/auto",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": "Придумай новую сказку."}
+        ]
+    }
     try:
-        msg = MIMEText(email_text)
-        msg["Subject"] = "Новый купон"
-        msg["From"] = EMAIL_ADDRESS
-        msg["To"] = RECIPIENT_EMAIL
-
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-
-        print("📧 Письмо успешно отправлено!")
-
-        await update.message.reply_text(
-            "Спасибо! Купон будет активирован в течении 24 часов.\n"
-            "Кстати, Вы подписаны на наши соцсети?\n\n"
-            "📲 Вот где мы делимся новостями, вкусными находками и хорошим настроением:\n\n"
-            "🔹 Instagram — https://instagram.com/2coffeemaniacs\n"
-            "🔹 Telegram — https://t.me/TwoCoffeeManiacs\n"
-            "🔹 Facebook — https://facebook.com/2coffeemaniacs\n"
-            "🔹 ВКонтакте — https://vk.com/2coffeemaniacs"
-        )
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=HEADERS,
+                json=payload
+            )
+            response.raise_for_status()
+            result = response.json()["choices"][0]["message"]["content"]
+            return result
     except Exception as e:
-        print(f"📧 Ошибка отправки email: {e}")
-        await update.message.reply_text("Произошла ошибка при отправке. Попробуйте позже.")
+        print("❌ Ошибка генерации:", e)
+        return "Ой... что-то пошло не так. Тимоша потерял сказку. Попробуй ещё раз позже."
 
-# Запуск сервера для Render
-class DummyHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Service is up")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Привет! Я — Сказочник Тимоша. ✨\nНапиши /skazka — и я расскажу тебе добрую сказку.")
 
-def run_dummy_server():
-    server = HTTPServer(('0.0.0.0', 8080), DummyHandler)
-    server.serve_forever()
+async def skazka(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Погоди немного... я вспоминаю сказку... ☕")
+    story = await generate_fairytale()
+    if len(story) <= 4096:
+        await update.message.reply_text(story)
+    else:
+        for i in range(0, len(story), 4096):
+            await update.message.reply_text(story[i:i+4096])
 
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(MessageHandler(filters.TEXT, handle_message))
-    app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("skazka", skazka))
+
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class DummyHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'Service is up')
+
+        def do_HEAD(self):
+            self.send_response(200)
+            self.end_headers()
+
+    def run_dummy_server():
+        server = HTTPServer(('0.0.0.0', 8080), DummyHandler)
+        server.serve_forever()
 
     threading.Thread(target=run_dummy_server, daemon=True).start()
-
-    print("✅ Polling запущен — бот слушает команды")
     app.run_polling()
