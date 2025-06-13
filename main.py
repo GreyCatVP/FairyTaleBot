@@ -29,7 +29,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def skazka(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Погоди немного... я вспоминаю сказку... ☕")
     story = await generate_fairytale()
-    await update.message.reply_text(story)
+    
+    # Делим сказку на куски по 4000 символов
+    for i in range(0, len(story), 4000):
+        await update.message.reply_text(story[i:i+4000])
 
 # Обработка кнопки "Хочу свою сказку"
 async def handle_custom_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
