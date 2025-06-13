@@ -42,7 +42,7 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     hero = context.user_data.get('hero', '')
     theme = context.user_data.get('theme', '')
 
-    prompt = f"Сказка с героем: {hero}. Тема: {theme}. Настроение: {tone}.")
+    prompt = f"Сказка с героем: {hero}. Тема: {theme}. Настроение: {tone}."
     await update.message.reply_text("Тимоша сел у камина и начал писать... 🕯")
     story = await generate_fairytale(prompt)
     await update.message.reply_text(story)
