@@ -1,31 +1,30 @@
-# utils.py
-import os
 import httpx
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
+SYSTEM_PROMPT = "Ты — добрый сказочник. Пиши короткие (3000–5000 символов), светлые и волшебные сказки для детей. Простым языком, с лёгким юмором и моралью."
+
 HEADERS = {
     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+    "HTTP-Referer": "https://github.com/GreyCatVP/FairyTaleBot",  # важно для OpenRouter
     "Content-Type": "application/json"
 }
 
-SYSTEM_PROMPT = (
-    "Ты — добрый сказочник по имени Тимоша. Пиши сказки для детей 5–9 лет."
-    " Они должны быть тёплыми, добрыми, волшебными, без жестокости."
-    " Объём — от 3000 до 5000 символов. Используй простой, но выразительный язык."
-)
 
 async def generate_fairytale():
     payload = {
-        "model": "openrouter/auto",
+        "model": "deepseek/deepseek-r1-0528:free",  # 👉 бесплатная модель
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": "Придумай новую сказку."}
-        ]
+        ],
+        "temperature": 1.0
     }
+
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
@@ -36,4 +35,5 @@ async def generate_fairytale():
             response.raise_for_status()
             return response.json()['choices'][0]['message']['content']
     except Exception as e:
+        print(f"[OpenRouter ERROR] {e}")
         return "Ой... что-то пошло не так. Тимоша потерял сказку. Попробуй ещё раз позже."
