@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: kupongrabber
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: python main.py
+    envVars:
+      - key: TOKEN
+        sync: false
+      - key: EMAIL_ADDRESS
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: RECIPIENT_EMAIL
+        sync: false
