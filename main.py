@@ -66,6 +66,7 @@ async def skazka(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for _ in range(3):
         story = await generate_fairytale()
+        print("\n=== GPT сгенерировал ===\n", story)
         if is_story_complete(story):
             break
     else:
