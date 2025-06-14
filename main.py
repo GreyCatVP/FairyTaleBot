@@ -3,6 +3,7 @@ import httpx
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
+from utils import generate_fairytale
 from story_checker import is_story_complete
 
 load_dotenv()
