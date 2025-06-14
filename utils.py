@@ -1,5 +1,6 @@
 import os
 import httpx
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -53,6 +54,7 @@ async def generate_fairytale():
     try:
         part1_prompt = messages + [{"role": "user", "content": "Напиши первую часть сказки (вступление), до 500 символов."}]
         part1 = await call_openrouter(part1_prompt)
+        await asyncio.sleep(10)
 
         part2_prompt = messages + [{
             "role": "user",
@@ -62,6 +64,7 @@ async def generate_fairytale():
 Напиши вторую часть сказки (развитие событий), до 500 символов. Используй тех же героев и продолжи сюжет.""".format(part1)
         }]
         part2 = await call_openrouter(part2_prompt)
+        await asyncio.sleep(10)
 
         part3_prompt = messages + [{
             "role": "user",
