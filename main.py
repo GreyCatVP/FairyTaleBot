@@ -1,9 +1,9 @@
-
 import os
 import httpx
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
+from story_checker import is_story_complete
 
 load_dotenv()
 
@@ -62,12 +62,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def skazka(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Погоди немного... я вспоминаю сказку... ☕")
-    story = await generate_fairytale()
+
+    for _ in range(3):
+        story = await generate_fairytale()
+        if is_story_complete(story):
+            break
+    else:
+        story = "Сказка сбежала в лес... Попробуй ещё раз позже 🐾"
+
     if len(story) <= 4096:
         await update.message.reply_text(story)
     else:
         for i in range(0, len(story), 4096):
             await update.message.reply_text(story[i:i+4096])
+
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
