@@ -34,33 +34,42 @@ async def call_openrouter(messages, model="deepseek/deepseek-r1-0528-qwen3-8b", 
 
 async def generate_fairytale():
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
     # Часть 1: вступление
     part1_prompt = messages + [{"role": "user", "content": "Напиши первую часть сказки (вступление), до 500 символов."}]
     part1 = await call_openrouter(part1_prompt)
 
-    # Часть 2: развитие событий
-part2_prompt = messages + [
-    {
-        "role": "user",
-        "content": (
-            f"Вот первая часть:\n{part1}\n\n"
-            "Напиши вторую часть сказки (развитие событий), до 500 символов. "
-            "Используй тех же героев и продолжи сюжет."
-        )
-    }
-]
+    # Часть 2: развитие
+    part2_prompt = messages + [
+        {
+            "role": "user",
+            "content": (
+                f"Вот первая часть:
+{part1}
 
-part3_prompt = messages + [
-    {
-        "role": "user",
-        "content": (
-            f"Вот первая и вторая части одной сказки:\n{part1}\n{part2}\n\n"
-            "Заверши именно ЭТУ историю. Не начинай новую! Обязательно сохрани героев и тему. "
-            "Заверши доброй моралью и фразой вроде «Вот и сказке конец»."
-        )
-    }
-]
+"
+                "Напиши вторую часть сказки (развитие событий), до 500 символов. "
+                "Используй тех же героев и продолжи сюжет."
+            )
+        }
+    ]
+    part2 = await call_openrouter(part2_prompt)
 
+    # Часть 3: финал с моралью
+    part3_prompt = messages + [
+        {
+            "role": "user",
+            "content": (
+                f"Вот первая и вторая части одной сказки:
+{part1}
+{part2}
+
+"
+                "Заверши именно ЭТУ историю. Не начинай новую! Обязательно сохрани героев и тему. "
+                "Заверши доброй моралью и фразой вроде «Вот и сказке конец»."
+            )
+        }
+    ]
     part3 = await call_openrouter(part3_prompt)
 
     full_story = part1.strip() + "\n\n" + part2.strip() + "\n\n" + part3.strip()
