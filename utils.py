@@ -35,11 +35,9 @@ async def call_openrouter(messages, model="deepseek/deepseek-r1-0528-qwen3-8b", 
 async def generate_fairytale():
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
-    # Часть 1: вступление
     part1_prompt = messages + [{"role": "user", "content": "Напиши первую часть сказки (вступление), до 500 символов."}]
     part1 = await call_openrouter(part1_prompt)
 
-    # Часть 2: развитие
     part2_prompt = messages + [
         {
             "role": "user",
@@ -55,7 +53,6 @@ async def generate_fairytale():
     ]
     part2 = await call_openrouter(part2_prompt)
 
-    # Часть 3: финал с моралью
     part3_prompt = messages + [
         {
             "role": "user",
