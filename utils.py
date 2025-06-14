@@ -29,7 +29,9 @@ async def generate_fairytale():
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": "Придумай новую сказку."}
         ],
-        "temperature": 1.0
+        "temperature": 0.9,
+        "stop": None,
+        "max_tokens": 1800
     }
 
     try:
