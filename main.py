@@ -23,7 +23,7 @@ HEADERS = {
 
 async def generate_fairytale():
     payload = {
-        "model": "openrouter/auto",
+        "model": "deepseek/deepseek-r1-0528:free",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": "Придумай новую сказку."}
