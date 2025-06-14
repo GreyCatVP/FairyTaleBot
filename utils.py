@@ -54,31 +54,19 @@ async def generate_fairytale():
         part1_prompt = messages + [{"role": "user", "content": "Напиши первую часть сказки (вступление), до 500 символов."}]
         part1 = await call_openrouter(part1_prompt)
 
-        part2_prompt = messages + [{
-            "role": "user",
-            "content": (
-                "Вот первая часть:
-" + part1 + "
+        part2_intro = """Вот первая часть:
+""" + part1 + """
 
-"
-                "Напиши вторую часть сказки (развитие событий), до 500 символов. "
-                "Используй тех же героев и продолжи сюжет."
-            )
-        }]
+Напиши вторую часть сказки (развитие событий), до 500 символов. Используй тех же героев и продолжи сюжет."""
+        part2_prompt = messages + [{"role": "user", "content": part2_intro}]
         part2 = await call_openrouter(part2_prompt)
 
-        part3_prompt = messages + [{
-            "role": "user",
-            "content": (
-                "Вот первая и вторая части одной сказки:
-" + part1 + "
-" + part2 + "
+        part3_intro = """Вот первая и вторая части одной сказки:
+""" + part1 + "
+" + part2 + """
 
-"
-                "Заверши именно ЭТУ историю. Не начинай новую! Обязательно сохрани героев и тему. "
-                "Заверши доброй моралью и фразой вроде «Вот и сказке конец»."
-            )
-        }]
+Заверши именно ЭТУ историю. Не начинай новую! Обязательно сохрани героев и тему. Заверши доброй моралью и фразой вроде «Вот и сказке конец»."""
+        part3_prompt = messages + [{"role": "user", "content": part3_intro}]
         part3 = await call_openrouter(part3_prompt)
 
         story = part1.strip() + "\n\n" + part2.strip() + "\n\n" + part3.strip()
