@@ -24,17 +24,22 @@ HEADERS = {
 async def generate_fairytale():
     payload = {
         "model": "deepseek/deepseek-r1-0528:free",
+        "max_tokens": 1600,
         "messages": [
             {
                 "role": "system",
-                "content": "Ты — добрый рассказчик сказок для детей. Пиши короткие, добрые, волшебные истории, которые приятно читать вслух. Сохраняй тепло, смысл и лёгкость."
+                "content": (
+                    "Ты — сказочник. Твоя задача — рассказывать добрые, понятные сказки для детей. "
+                    "Целевая аудитория: дети 3–8 лет, читают родители. "
+                    "Сказка должна быть завершённой, без обрыва. Не добавляй ничего после сказки. "
+                    "Желаемый объём — от 1500 до 2000 символов."
+                )
             },
             {
                 "role": "user",
-                "content": "Придумай новую добрую сказку на русском языке. Сюжет должен быть интересным детям. Объём — строго от 1500 до 2000 символов. Используй простые слова, без лишней воды. Сказку будут читать вслух мама или папа."
+                "content": "Расскажи добрую сказку."
             }
-        ],
-        "max_tokens": 800  # ≈ 1600–2000 символов
+        ]
     }
 
     try:
@@ -45,10 +50,11 @@ async def generate_fairytale():
                 json=payload
             )
             response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
+            return response.json()["choices"][0]["message"]["content"]
     except Exception as e:
         print(f"❌ Ошибка генерации: {e}")
         return "Ой... что-то пошло не так. Тимоша потерял сказку. Попробуй ещё раз позже."
+
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
