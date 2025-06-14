@@ -25,10 +25,18 @@ async def generate_fairytale():
     payload = {
         "model": "deepseek/deepseek-r1-0528:free",
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": "Придумай новую сказку."}
-        ]
+            {
+                "role": "system",
+                "content": "Ты — добрый рассказчик сказок для детей. Пиши короткие, добрые, волшебные истории, которые приятно читать вслух. Сохраняй тепло, смысл и лёгкость."
+            },
+            {
+                "role": "user",
+                "content": "Придумай новую добрую сказку на русском языке. Сюжет должен быть интересным детям. Объём — строго от 1500 до 2000 символов. Используй простые слова, без лишней воды. Сказку будут читать вслух мама или папа."
+            }
+        ],
+        "max_tokens": 800  # ≈ 1600–2000 символов
     }
+
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
@@ -37,11 +45,11 @@ async def generate_fairytale():
                 json=payload
             )
             response.raise_for_status()
-            result = response.json()["choices"][0]["message"]["content"]
-            return result
+            return response.json()['choices'][0]['message']['content']
     except Exception as e:
-        print("❌ Ошибка генерации:", e)
+        print(f"❌ Ошибка генерации: {e}")
         return "Ой... что-то пошло не так. Тимоша потерял сказку. Попробуй ещё раз позже."
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Привет! Я — Сказочник Тимоша. ✨\nНапиши /skazka — и я расскажу тебе добрую сказку.")
