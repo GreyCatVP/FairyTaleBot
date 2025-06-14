@@ -44,7 +44,6 @@ async def call_openrouter(messages, model="deepseek/deepseek-r1-0528-qwen3-8b", 
         return response.json()["choices"][0]["message"]["content"]
 
 async def generate_fairytale(user_id=None):
-    # Ограничение: один запрос в 300 секунд на пользователя
     now = time.time()
     if user_id:
         if user_id in LAST_REQUEST_TIME and now - LAST_REQUEST_TIME[user_id] < 300:
@@ -58,9 +57,11 @@ async def generate_fairytale(user_id=None):
 
     try:
         story = await call_openrouter(messages)
+        print("📜 Сказка сгенерирована:\n", story)
         if is_story_complete(story):
             return story
         else:
             return story + "\n\n(🤖 Похоже, сказка не завершена. Прости!)"
     except Exception as e:
-        return "Ой... что-то пошло не так. Тимоша потерял сказку. Попробуй ещё раз позже.\n❌ Ошибка генерации: {}".format(str(e))
+        print("❌ Ошибка генерации:", str(e))
+        return "Ой... что-то пошло не так. Тимоша потерял сказку. Попробуй ещё раз позже.\n❌ Ошибка: {}".format(str(e))
