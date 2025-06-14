@@ -1,12 +1,18 @@
 import os
 import httpx
 import time
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 LAST_REQUEST_TIME = {}
+
+MODELS = [
+    "deepseek/deepseek-r1-0528-qwen3-8b",
+    "gryphe/mythomax-l2-13b"
+]
 
 SYSTEM_PROMPT = (
     "Ты — добрый сказочник. Пиши добрые, завершённые сказки для детей (детям 3–8 лет читают родители). "
@@ -23,34 +29,40 @@ def is_story_complete(story: str) -> bool:
     ]
     return any(marker in story for marker in final_markers)
 
-async def call_openrouter(messages, model="deepseek/deepseek-r1-0528-qwen3-8b", max_tokens=1800):
+async def call_openrouter(messages, model, max_tokens=1800, retries=3, delay=5):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://chat.openai.com/",
         "X-Title": "FairytaleBot"
     }
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "temperature": 0.9
-                }
-            )
-            print("📡 Ответ OpenRouter:", response.text)
-            response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
-        except httpx.RequestError as e:
-            print("❌ Сетевая ошибка:", str(e))
-            raise e
-        except httpx.HTTPStatusError as e:
-            print("❌ HTTP ошибка:", str(e))
-            print("🔽 Ответ тела:", e.response.text)
-            raise e
+
+    for attempt in range(1, retries + 1):
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "messages": messages,
+                        "max_tokens": max_tokens,
+                        "temperature": 0.9
+                    }
+                )
+                print(f"📡 [{model}] Ответ OpenRouter:", response.text)
+                response.raise_for_status()
+                return response.json()["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    print(f"⚠️ Попытка {attempt} — модель перегружена ({model})")
+                    await asyncio.sleep(delay)
+                else:
+                    print(f"❌ Ошибка [{model}]:", str(e))
+                    raise e
+            except Exception as e:
+                print(f"❌ Другая ошибка [{model}]:", str(e))
+                raise e
+    raise Exception(f"Модель {model} перегружена (429) после {retries} попыток")
 
 async def generate_fairytale(user_id=None):
     now = time.time()
@@ -64,13 +76,18 @@ async def generate_fairytale(user_id=None):
         {"role": "user", "content": "Придумай короткую, но завершённую сказку для детей. Обязательно включи добрую мораль и финал типа «Вот и сказке конец»."}
     ]
 
-    try:
-        story = await call_openrouter(messages)
-        print("📜 Сказка сгенерирована:\n", story)
-        if is_story_complete(story):
-            return story
-        else:
-            return story + "\n\n(⚠️ История не завершена, но выдана.)"
-    except Exception as e:
-        print("❌ Ошибка генерации:", str(e))
-        return "Ой... что-то пошло не так. Тимоша потерял сказку. Попробуй ещё раз позже.\n❌ Ошибка: {}".format(str(e))
+    for model in MODELS:
+        try:
+            story = await call_openrouter(messages, model)
+            print(f"📜 Сказка от [{model}]:\n", story)
+            if is_story_complete(story):
+                return story
+            else:
+                return story + "\n\n(⚠️ История не завершена, но выдана.)"
+        except Exception as e:
+            print(f"⚠️ Не удалось сгенерировать с [{model}]:", str(e))
+
+    return (
+        "Ой... Тимоша хотел рассказать сказку, но все сказочные порталы перегружены. "
+        "Попробуй чуть позже — он уже кипятит чайник для вдохновения. 🍵"
+    )
