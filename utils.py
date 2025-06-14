@@ -1,5 +1,5 @@
-import httpx
 import os
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,40 +9,53 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 SYSTEM_PROMPT = (
     "Ты — добрый сказочник. Пиши добрые, завершённые сказки для детей (детям 3–8 лет читают родители). "
     "Сказка должна быть простой, понятной, с лёгким юмором, и обязательно нести добрую мораль. "
-    "В финале сделай вывод, чему научила эта история. "
-    "Заканчивай сказку фразой вроде: «Вот и сказке конец» или «И жили они долго и счастливо». "
-    "Размер: **от 1100 до 1300 символов**. Только текст сказки. Без заголовков, без пояснений."
+    "Текст без заголовков и пояснений. Только сама сказка."
 )
 
-
-HEADERS = {
-    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-    "HTTP-Referer": "https://github.com/GreyCatVP/FairyTaleBot",  # важно для OpenRouter
-    "Content-Type": "application/json"
-}
-
+async def call_openrouter(messages, model="deepseek/deepseek-r1-0528-qwen3-8b", max_tokens=600):
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "HTTP-Referer": "https://chat.openai.com/",
+        "X-Title": "FairytaleBot"
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json={
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": 0.9
+            }
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
 
 async def generate_fairytale():
-    payload = {
-        "model": "deepseek/deepseek-r1-0528-qwen3-8b",  # 👉 бесплатная модель
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": "Придумай новую сказку."}
-        ],
-        "temperature": 0.9,
-        "stop": None,
-        "max_tokens": 1800
-    }
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Часть 1: вступление
+    part1_prompt = messages + [{"role": "user", "content": "Напиши первую часть сказки (вступление), до 500 символов."}]
+    part1 = await call_openrouter(part1_prompt)
 
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=HEADERS,
-                json=payload
-            )
-            response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
-    except Exception as e:
-        print(f"[OpenRouter ERROR] {e}")
-        return "Ой... что-то пошло не так. Тимоша потерял сказку. Попробуй ещё раз позже."
+    # Часть 2: развитие событий
+    part2_prompt = messages + [
+        {"role": "user", "content": f"Вот первая часть:
+{part1}
+
+Напиши вторую часть сказки (развитие событий), до 500 символов. Используй тех же героев и продолжи сюжет."}
+    ]
+    part2 = await call_openrouter(part2_prompt)
+
+    # Часть 3: завершение и мораль с усиленной инструкцией
+    part3_prompt = messages + [
+        {"role": "user", "content": f"Вот первая и вторая части одной сказки:
+{part1}
+{part2}
+
+Заверши именно ЭТУ историю. Не начинай новую! Обязательно сохрани героев и тему. Заверши доброй моралью и фразой вроде «Вот и сказке конец»."}
+    ]
+    part3 = await call_openrouter(part3_prompt)
+
+    full_story = part1.strip() + "\n\n" + part2.strip() + "\n\n" + part3.strip()
+    return full_story
