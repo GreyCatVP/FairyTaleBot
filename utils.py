@@ -35,11 +35,12 @@ async def generate_fairytale():
     # Автозавершение если сказка не закончена
     continuation_prompt = {
         "role": "user",
-        "content": f"Вот начало сказки:
-
-{story}
-
-Заверши эту сказку. Не начинай новую. Сохрани героев и добавь мораль. Закончить фразой «Вот и сказке конец»."
+        "content": (
+            "Вот начало сказки:\n\n"
+            + story +
+            "\n\nЗаверши эту сказку. Не начинай новую. Сохрани героев и добавь мораль. "
+            "Закончить фразой «Вот и сказке конец»."
+        )
     }
     continuation_payload = {
         "model": "deepseek/deepseek-r1-0528-qwen3-8b",
@@ -49,9 +50,7 @@ async def generate_fairytale():
     }
 
     ending = await call_openrouter(continuation_payload)
-    return story.strip() + "
-
-" + ending.strip()
+    return story.strip() + "\n\n" + ending.strip()
 
 def is_story_complete(story: str) -> bool:
     lowered = story.lower()
@@ -62,7 +61,6 @@ def is_story_complete(story: str) -> bool:
     moral_markers = [
         "мораль", "урок", "научился", "понял", "дружба", "добро", "важно", "всегда", "настоящее"
     ]
-    # наличие финального маркера или морального вывода
     has_final = any(marker in lowered for marker in completion_markers)
     has_moral = any(phrase in lowered for phrase in moral_markers)
     return has_final or has_moral
