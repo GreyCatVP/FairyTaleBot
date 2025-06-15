@@ -2,6 +2,7 @@ import os
 import httpx
 import time
 import asyncio
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,13 +32,18 @@ def is_story_complete(story: str) -> bool:
     ]
     return any(marker in story for marker in final_markers)
 
-def has_multiple_stories(story: str) -> bool:
+def cut_to_first_story(story: str) -> str:
     intro_markers = [
-        "Жила-была", "Однажды", "Давным-давно", "В одном лесу", "Жил да был", "Была у бабушки", "В далёкой деревне"
+        r"(Жила-была|Жил да был|Однажды|Давным-давно|В одном лесу|В далёкой деревне|Была у бабушки)"
     ]
-    return sum(story.count(m) for m in intro_markers) > 1
+    matches = list(re.finditer(intro_markers[0], story))
+    if len(matches) > 1:
+        cut_pos = matches[1].start()
+        print("🪄 Обнаружено несколько сказок — обрезаем на первой.")
+        return story[:cut_pos].strip() + "\n\n(🪄 Обрезано на первой сказке)"
+    return story
 
-async def call_openrouter(messages, model, max_tokens=1800, retries=3, delay=5):
+async def call_openrouter(messages, model, max_tokens=1700, retries=3, delay=5):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://chat.openai.com/",
@@ -87,10 +93,8 @@ async def generate_fairytale(user_id=None):
     for model in MODELS:
         try:
             story = await call_openrouter(messages, model)
+            story = cut_to_first_story(story)
             print(f"📜 Сказка от [{model}]:\n", story)
-            if has_multiple_stories(story):
-                print("🚫 Обнаружено несколько сказок — пробуем ещё раз")
-                continue
             if is_story_complete(story):
                 return story
             else:
