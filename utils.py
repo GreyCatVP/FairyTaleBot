@@ -94,11 +94,18 @@ async def generate_fairytale(user_id=None):
         try:
             story = await call_openrouter(messages, model)
             story = cut_to_first_story(story)
-            print(f"📜 Сказка от [{model}]:\n", story)
+
             if is_story_complete(story):
                 return story
-            else:
-                return story + "\n\n(⚠️ История не завершена, но выдана.)"
+
+            print("⚠️ Сказка незавершённая — пробуем завершить...")
+            continuation_prompt = [
+                {"role": "system", "content": "Ты продолжаешь начатую сказку. Заверши её красиво, с моралью и финальной фразой."},
+                {"role": "user", "content": f"Вот первая часть сказки:\n\n{story}\n\nЗаверши именно эту историю. Сохрани стиль. Добавь мораль и финал. Не начинай новую сказку."}
+            ]
+            continuation = await call_openrouter(continuation_prompt, model)
+            full_story = story.strip() + "\n\n" + continuation.strip()
+            return full_story
         except Exception as e:
             print(f"⚠️ Не удалось сгенерировать с [{model}]:", str(e))
 
