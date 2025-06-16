@@ -5,17 +5,19 @@ import asyncio
 import re
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-r1-0528:free")
 
 HEADERS = {
     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
     "HTTP-Referer": "https://t.me/SkazochnikTimoshaBot",
     "Content-Type": "application/json"
 }
-
-MODEL = "deepseek/deepseek-r1-0528:free"
 
 async def gpt_call(messages, max_tokens=2048):
     payload = {
@@ -28,7 +30,11 @@ async def gpt_call(messages, max_tokens=2048):
         async with httpx.AsyncClient(timeout=90.0) as client:
             r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=HEADERS, json=payload)
             r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"].strip()
+            content = r.json()["choices"][0]["message"]["content"].strip()
+            if content.lower().startswith("слишком много запросов"):
+                print("[⚠️] Заглушка от модели — не настоящая сказка")
+                return "Сейчас я не могу рассказать сказку — подожди немного ☕"
+            return content
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 429:
             return "Слишком много запросов. Подожди немного и попробуй ещё раз ☕"
@@ -56,15 +62,13 @@ async def generate_fairytale():
     ]
 
     story = await gpt_call(base_prompt)
-    if "Слишком много запросов" in story:
+    if "Сейчас я не могу рассказать сказку" in story or "Слишком много запросов" in story:
         return story
 
-    # фильтр: если GPT выдал только мораль — повторяем генерацию
     if is_only_moral(story):
         print("[❗] Получена мораль без сказки — повторная генерация")
         story = await gpt_call(base_prompt)
 
-    # Проверка завершённости GPT-оценкой
     verify_prompt = [{"role": "user", "content": f"Вот сказка:\n\n{story}\n\nСкажи честно, завершена ли она логически и художественно? Ответь только 'да' или 'нет'."}]
     verdict = await gpt_call(verify_prompt, max_tokens=10)
     if verdict.lower().strip().startswith("н"):
