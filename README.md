@@ -1,3 +1,3 @@
-# FairyTaleBot v12.1
+# FairyTaleBot v12.2
 
-Добавлена защита от ошибки 429 Too Many Requests на стороне OpenRouter.
+Добавлена защита от генерации "голой морали" без самой сказки.

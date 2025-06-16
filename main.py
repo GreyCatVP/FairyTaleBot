@@ -38,6 +38,13 @@ def is_truncated(text):
     last_word = re.split(r'\s+', text.strip())[-1]
     return not re.match(r'^[А-Яа-яA-Za-z0-9ёЁ\-–—"“”«»!?.,;:…]+$', last_word)
 
+def is_only_moral(text):
+    lowered = text.lower()
+    return (
+        lowered.startswith("вот и сказке конец") or
+        "мораль" in lowered[:300] and len(text.split()) < 100
+    )
+
 async def generate_fairytale():
     base_prompt = [
         {"role": "system", "content": (
@@ -52,6 +59,12 @@ async def generate_fairytale():
     if "Слишком много запросов" in story:
         return story
 
+    # фильтр: если GPT выдал только мораль — повторяем генерацию
+    if is_only_moral(story):
+        print("[❗] Получена мораль без сказки — повторная генерация")
+        story = await gpt_call(base_prompt)
+
+    # Проверка завершённости GPT-оценкой
     verify_prompt = [{"role": "user", "content": f"Вот сказка:\n\n{story}\n\nСкажи честно, завершена ли она логически и художественно? Ответь только 'да' или 'нет'."}]
     verdict = await gpt_call(verify_prompt, max_tokens=10)
     if verdict.lower().strip().startswith("н"):
