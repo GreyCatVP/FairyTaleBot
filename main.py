@@ -1,4 +1,5 @@
 import os
+import re
 import httpx
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -26,6 +27,12 @@ ENDINGS = [
     "И больше они не боялись темноты.",
 ]
 
+WEAK_END_VERBS = [
+    "сидел", "сидела", "думал", "думала", "плакал", "плакала", "стоял", "стояла",
+    "ждал", "ждала", "молчал", "молчала", "смотрел", "смотрела", "бежал", "бежала",
+    "смотрели", "стояли", "плакали", "молчали", "бежали"
+]
+
 MAX_LENGTH = 4096
 
 def is_story_ok(story: str):
@@ -33,28 +40,42 @@ def is_story_ok(story: str):
 
 def is_story_finished(story: str):
     cleaned = story.strip()
-    return any(end in cleaned[-300:] for end in ENDINGS) and cleaned[-1] in ".!?"
+    last_line = cleaned.split("\n")[-1].lower().strip(" .!?«»")
+    if any(end in cleaned[-300:] for end in ENDINGS) and cleaned[-1] in ".!?":
+        return True
+    if any(last_line.endswith(verb) for verb in WEAK_END_VERBS):
+        return False
+    return len(last_line.split()) >= 5 and cleaned[-1] in ".!?"
 
 def ensure_ending(story: str):
     if not is_story_finished(story):
         story += "\n\nВот и сказке конец. ✨"
     return story
 
-def split_by_paragraphs(text):
-    parts = []
+def split_text_smart(text, max_len=MAX_LENGTH):
+    paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+    chunks = []
     current = ""
-    for paragraph in text.split("\n"):
-        paragraph = paragraph.strip()
-        if not paragraph:
-            continue
-        if len(current) + len(paragraph) + 2 > MAX_LENGTH:
-            parts.append(current.strip())
-            current = paragraph
+
+    for para in paragraphs:
+        if len(para) > max_len:
+            sentences = re.split(r'(?<=[.!?…]) +', para)
+            for sentence in sentences:
+                if len(current) + len(sentence) + 1 > max_len:
+                    chunks.append(current.strip())
+                    current = sentence
+                else:
+                    current += " " + sentence
         else:
-            current += "\n" + paragraph
+            if len(current) + len(para) + 2 > max_len:
+                chunks.append(current.strip())
+                current = para
+            else:
+                current += "\n" + para
+
     if current.strip():
-        parts.append(current.strip())
-    return parts
+        chunks.append(current.strip())
+    return chunks
 
 async def request_gpt_story(messages: list, max_tokens=2000):
     payload = {
@@ -125,7 +146,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def skazka(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Погоди немного... я вспоминаю сказку... ☕")
     story = await generate_fairytale()
-    parts = split_by_paragraphs(story)
+    parts = split_text_smart(story)
 
     for i, part in enumerate(parts, start=1):
         if len(parts) > 1:
