@@ -27,9 +27,12 @@ ENDINGS = [
 ]
 
 def is_story_ok(story: str):
-    if len(story) < 1200:
-        return False
-    return any(story.strip().endswith(end) for end in ENDINGS)
+    return len(story) >= 1200
+
+def ensure_ending(story: str):
+    if not any(end in story[-300:] for end in ENDINGS):
+        story += "\n\nВот и сказке конец. ✨"
+    return story
 
 async def generate_fairytale():
     payload = {
@@ -54,7 +57,7 @@ async def generate_fairytale():
 
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=90.0) as client:
                 response = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers=HEADERS,
@@ -64,7 +67,7 @@ async def generate_fairytale():
                 story = response.json()["choices"][0]["message"]["content"].strip()
                 print(f"\n=== GPT Сказка [{attempt+1}] ===\n{story}\n")
                 if is_story_ok(story):
-                    return story
+                    return ensure_ending(story)
         except Exception as e:
             print(f"❌ Попытка {attempt+1}: ошибка генерации — {e}")
 
