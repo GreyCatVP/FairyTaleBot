@@ -3,6 +3,7 @@ import os
 import httpx
 import asyncio
 import re
+import sys
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
@@ -19,7 +20,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-async def gpt_call(messages, max_tokens=2048, retries=1):
+async def gpt_call(messages, max_tokens=2048, retries=2):
     payload = {
         "model": MODEL,
         "messages": messages,
@@ -28,22 +29,27 @@ async def gpt_call(messages, max_tokens=2048, retries=1):
     }
     for attempt in range(retries + 1):
         try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
+            sys.stderr.write(f"[🌀] Попытка запроса #{attempt+1} к GPT\n")
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=HEADERS, json=payload)
                 r.raise_for_status()
                 content = r.json()["choices"][0]["message"]["content"].strip()
-                if content.lower().startswith("слишком много запросов"):
-                    print("[⚠️] Заглушка от OpenRouter: GPT не был запущен.")
+                sys.stderr.write(f"[DEBUG] GPT ответ (обрезано): {content[:100]}...\n")
+                if any(msg in content.lower() for msg in ["слишком много запросов", "too many requests", "rate limit", "model is busy"]):
+                    sys.stderr.write("[⚠️] Заглушка от OpenRouter: GPT не был запущен.\n")
                     return "Сегодня волшебный портал перегружен. Я тихонько посижу и подожду. Загляни чуть позже ☁️"
                 return content
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 429:
-                print(f"[🚫] 429 Too Many Requests от OpenRouter (попытка {attempt+1})")
+                sys.stderr.write(f"[🚫] 429 Too Many Requests от OpenRouter (попытка {attempt+1})\n")
                 if attempt < retries:
                     await asyncio.sleep(5)
                     continue
                 return "Слишком много запросов. Подожди немного и попробуй ещё раз ☕"
             raise
+        except Exception as ex:
+            sys.stderr.write(f"[❌] Ошибка при обращении к GPT: {str(ex)}\n")
+            return "Произошла ошибка при обращении к сказочному порталу 😢"
 
 def is_truncated(text):
     last_word = re.split(r'\s+', text.strip())[-1]
@@ -66,17 +72,17 @@ async def generate_fairytale():
         {"role": "user", "content": "Расскажи добрую сказку."}
     ]
 
-    story = await gpt_call(base_prompt, retries=1)
+    story = await gpt_call(base_prompt, retries=2)
     if "волшебный портал перегружен" in story or "Слишком много запросов" in story:
         return story
 
     if is_only_moral(story):
-        print("[❗] Получена мораль без сказки — повторная генерация")
+        sys.stderr.write("[❗] Получена мораль без сказки — повторная генерация\n")
         story = await gpt_call(base_prompt)
 
     verify_prompt = [{"role": "user", "content": f"Вот сказка:\n\n{story}\n\nСкажи честно, завершена ли она логически и художественно? Ответь только 'да' или 'нет'."}]
     verdict = await gpt_call(verify_prompt, max_tokens=10)
-    if verdict.lower().strip().startswith("н"):
+    if not verdict.strip().lower().startswith("да"):
         cont_prompt = base_prompt + [{"role": "assistant", "content": story}, {"role": "user", "content": "Пожалуйста, продолжи сказку до её полного завершения с финалом и моралью."}]
         continuation = await gpt_call(cont_prompt)
         story += "\n" + continuation
@@ -94,13 +100,14 @@ async def generate_fairytale():
 
 def split_story(text, max_length=4096):
     parts = []
+    paragraphs = text.split("\n")
     current = ""
-    for paragraph in text.split("\n"):
-        if len(current) + len(paragraph) + 1 > max_length:
+    for p in paragraphs:
+        if len(current) + len(p) + 1 > max_length:
             parts.append(current)
-            current = paragraph
+            current = p
         else:
-            current += "\n" + paragraph
+            current += "\n" + p
     if current:
         parts.append(current)
     return parts
