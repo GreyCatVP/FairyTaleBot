@@ -19,26 +19,31 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-async def gpt_call(messages, max_tokens=2048):
+async def gpt_call(messages, max_tokens=2048, retries=1):
     payload = {
         "model": MODEL,
         "messages": messages,
         "temperature": 0.8,
         "max_tokens": max_tokens
     }
-    try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=HEADERS, json=payload)
-            r.raise_for_status()
-            content = r.json()["choices"][0]["message"]["content"].strip()
-            if content.lower().startswith("слишком много запросов"):
-                print("[⚠️] Заглушка от OpenRouter: GPT не был запущен.")
-                return "Сегодня волшебный портал перегружен. Я тихонько посижу и подожду. Загляни чуть позже ☁️"
-            return content
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 429:
-            return "Слишком много запросов. Подожди немного и попробуй ещё раз ☕"
-        raise
+    for attempt in range(retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                r = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=HEADERS, json=payload)
+                r.raise_for_status()
+                content = r.json()["choices"][0]["message"]["content"].strip()
+                if content.lower().startswith("слишком много запросов"):
+                    print("[⚠️] Заглушка от OpenRouter: GPT не был запущен.")
+                    return "Сегодня волшебный портал перегружен. Я тихонько посижу и подожду. Загляни чуть позже ☁️"
+                return content
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                print(f"[🚫] 429 Too Many Requests от OpenRouter (попытка {attempt+1})")
+                if attempt < retries:
+                    await asyncio.sleep(5)
+                    continue
+                return "Слишком много запросов. Подожди немного и попробуй ещё раз ☕"
+            raise
 
 def is_truncated(text):
     last_word = re.split(r'\s+', text.strip())[-1]
@@ -61,7 +66,7 @@ async def generate_fairytale():
         {"role": "user", "content": "Расскажи добрую сказку."}
     ]
 
-    story = await gpt_call(base_prompt)
+    story = await gpt_call(base_prompt, retries=1)
     if "волшебный портал перегружен" in story or "Слишком много запросов" in story:
         return story
 
