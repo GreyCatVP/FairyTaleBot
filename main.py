@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-<вставить сюда финальный main.py v7 из предыдущего шага>
-=======
 import os
 import httpx
 from telegram import Update
@@ -161,4 +158,3 @@ if __name__ == "__main__":
 
     threading.Thread(target=run_dummy_server, daemon=True).start()
     app.run_polling()
->>>>>>> 98aeda4 (v6: деление сказки по абзацам, исправление обрыва текста в Telegram)
