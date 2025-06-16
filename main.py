@@ -35,6 +35,10 @@ WEAK_END_VERBS = [
 
 MAX_LENGTH = 4096
 
+def is_obvious_cutoff(text):
+    last_line = text.strip().split("\n")[-1]
+    return bool(re.search(r"[а-яА-ЯёЁ]{2,}-[а-яА-ЯёЁ]?$", last_line.strip()))
+
 def is_story_ok(story: str):
     return len(story) >= 1200
 
@@ -42,8 +46,12 @@ def is_story_finished(story: str):
     cleaned = story.strip()
     last_line = cleaned.split("\n")[-1].lower().strip(" .!?«»")
     if any(end in cleaned[-300:] for end in ENDINGS) and cleaned[-1] in ".!?":
+        if is_obvious_cutoff(cleaned):
+            return False
         return True
     if any(last_line.endswith(verb) for verb in WEAK_END_VERBS):
+        return False
+    if is_obvious_cutoff(cleaned):
         return False
     return len(last_line.split()) >= 5 and cleaned[-1] in ".!?"
 
