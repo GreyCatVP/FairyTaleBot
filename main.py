@@ -32,8 +32,8 @@ async def gpt_call(messages, max_tokens=2048):
             r.raise_for_status()
             content = r.json()["choices"][0]["message"]["content"].strip()
             if content.lower().startswith("слишком много запросов"):
-                print("[⚠️] Заглушка от модели — не настоящая сказка")
-                return "Сейчас я не могу рассказать сказку — подожди немного ☕"
+                print("[⚠️] Заглушка от OpenRouter: GPT не был запущен.")
+                return "Сегодня волшебный портал перегружен. Я тихонько посижу и подожду. Загляни чуть позже ☁️"
             return content
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 429:
@@ -62,7 +62,7 @@ async def generate_fairytale():
     ]
 
     story = await gpt_call(base_prompt)
-    if "Сейчас я не могу рассказать сказку" in story or "Слишком много запросов" in story:
+    if "волшебный портал перегружен" in story or "Слишком много запросов" in story:
         return story
 
     if is_only_moral(story):
