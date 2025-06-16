@@ -29,48 +29,72 @@ ENDINGS = [
 def is_story_ok(story: str):
     return len(story) >= 1200
 
-def ensure_ending(story: str):
+def is_story_finished(story: str):
     cleaned = story.strip()
-    if any(end in cleaned[-300:] for end in ENDINGS):
-        return cleaned
-    if cleaned.endswith("...") or cleaned[-1] not in ".!?":
-        return cleaned + "\n\nВот и сказке конец. ✨"
-    return cleaned + "\n\nВот и сказке конец. ✨"
+    return any(end in cleaned[-300:] for end in ENDINGS) and cleaned[-1] in ".!?"
 
-async def generate_fairytale():
+def ensure_ending(story: str):
+    if not is_story_finished(story):
+        story += "\n\nВот и сказке конец. ✨"
+    return story
+
+async def request_gpt_story(messages: list, max_tokens=2000):
     payload = {
         "model": "deepseek/deepseek-r1-0528:free",
-        "max_tokens": 2000,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "Ты — сказочник. Твоя задача — рассказывать добрые, понятные сказки для детей. "
-                    "Целевая аудитория: дети 3–8 лет, читают родители. "
-                    "Сказка должна быть завершённой, без обрыва. Не добавляй ничего после сказки. "
-                    "Желаемый объём — от 1500 до 2000 символов."
-                )
-            },
-            {
-                "role": "user",
-                "content": "Расскажи добрую сказку."
-            }
-        ]
+        "max_tokens": max_tokens,
+        "messages": messages
     }
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        response = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=HEADERS,
+            json=payload
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"].strip()
+
+async def generate_fairytale():
+    base_messages = [
+        {
+            "role": "system",
+            "content": (
+                "Ты — сказочник. Твоя задача — рассказывать добрые, понятные сказки для детей. "
+                "Целевая аудитория: дети 3–8 лет, читают родители. "
+                "Сказка должна быть завершённой, с понятной моралью. Не добавляй ничего после сказки. "
+                "Желаемый объём — от 1500 до 2000 символов."
+            )
+        },
+        {
+            "role": "user",
+            "content": "Расскажи добрую сказку."
+        }
+    ]
 
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                response = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=HEADERS,
-                    json=payload
-                )
-                response.raise_for_status()
-                story = response.json()["choices"][0]["message"]["content"].strip()
-                print(f"\n=== GPT Сказка [{attempt+1}] ===\n{story}\n")
-                if is_story_ok(story):
+            story = await request_gpt_story(base_messages)
+            print(f"\n=== GPT Сказка [{attempt+1}] ===\n{story}\n")
+
+            if is_story_ok(story):
+                if is_story_finished(story):
                     return ensure_ending(story)
+
+                # Если обрыв — запрашиваем продолжение
+                print("⏭ Обнаружен обрыв — GPT продолжит сказку...")
+                continuation_messages = [
+                    *base_messages,
+                    {
+                        "role": "assistant",
+                        "content": story
+                    },
+                    {
+                        "role": "user",
+                        "content": "Пожалуйста, закончи эту сказку до конца, добавив финал и мораль."
+                    }
+                ]
+                continuation = await request_gpt_story(continuation_messages, max_tokens=600)
+                full_story = story + "\n" + continuation
+                return ensure_ending(full_story)
         except Exception as e:
             print(f"❌ Попытка {attempt+1}: ошибка генерации — {e}")
 
