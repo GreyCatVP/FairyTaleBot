@@ -30,14 +30,17 @@ def is_story_ok(story: str):
     return len(story) >= 1200
 
 def ensure_ending(story: str):
-    if not any(end in story[-300:] for end in ENDINGS):
-        story += "\n\nВот и сказке конец. ✨"
-    return story
+    cleaned = story.strip()
+    if any(end in cleaned[-300:] for end in ENDINGS):
+        return cleaned
+    if cleaned.endswith("...") or cleaned[-1] not in ".!?":
+        return cleaned + "\n\nВот и сказке конец. ✨"
+    return cleaned + "\n\nВот и сказке конец. ✨"
 
 async def generate_fairytale():
     payload = {
         "model": "deepseek/deepseek-r1-0528:free",
-        "max_tokens": 1600,
+        "max_tokens": 2000,
         "messages": [
             {
                 "role": "system",
